@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/main.tsx","./src/components/comparepanel.tsx","./src/components/contenttreeselector.tsx","./src/components/difftable.tsx","./src/components/environmentmanager.tsx","./src/components/migrationlogmodal.tsx","./src/services/optimizelyapi.ts","./src/types/index.ts","./src/utils/diff.ts","./src/utils/localstorage.ts"],"version":"5.9.3"}

@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    {
+      "source": "/optimizely-proxy/:path*",
+      "destination": "https://api.cms.optimizely.com/:path*"
+    }
+  ]
+}
