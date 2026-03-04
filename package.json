@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@ant-design/icons": "^6.0.0",
+    "@hello-pangea/dnd": "^18.0.1",
     "antd": "^6.0.0",
     "react": "^19.0.0",
     "react-diff-viewer-continued": "^4.0.5",

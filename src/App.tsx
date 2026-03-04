@@ -36,6 +36,7 @@ import {
    ComparisonResult,
    ContentNode,
    EnvironmentConfig,
+   EnvironmentGroup,
 } from "./types";
 import {
    getEntityName,
@@ -43,9 +44,11 @@ import {
    stripReadonlyFields,
 } from "./utils/diff";
 import {
-   loadEnvironments,
+   flattenGroupsToEnvironments,
+   loadGroups,
+   migrateLegacyEnvironmentsToGroups,
    loadThemeMode,
-   saveEnvironments,
+   saveGroups,
    saveThemeMode,
 } from "./utils/localStorage";
 
@@ -110,9 +113,7 @@ const getContentDisplayLabel = (
 
 const App = () => {
    const [api, contextHolder] = notification.useNotification();
-   const [environments, setEnvironments] = useState<EnvironmentConfig[]>(() =>
-      loadEnvironments(),
-   );
+   const [groups, setGroups] = useState<EnvironmentGroup[]>(() => loadGroups());
    const [themeMode, setThemeMode] = useState<"light" | "dark">(() =>
       loadThemeMode(),
    );
@@ -143,9 +144,24 @@ const App = () => {
    const [migrationRunning, setMigrationRunning] = useState(false);
    const [migrationLogs, setMigrationLogs] = useState<string[]>([]);
 
+   const environments = useMemo(
+      () => flattenGroupsToEnvironments(groups),
+      [groups],
+   );
+
    useEffect(() => {
-      saveEnvironments(environments);
-   }, [environments]);
+      const migration = migrateLegacyEnvironmentsToGroups();
+      if (migration.migrated) {
+         setGroups(migration.groups);
+         api.success({
+            message: "Migrated old environments to new grouped structure.",
+         });
+      }
+   }, [api]);
+
+   useEffect(() => {
+      saveGroups(groups);
+   }, [groups]);
 
    useEffect(() => {
       saveThemeMode(themeMode);
@@ -166,7 +182,8 @@ const App = () => {
       Boolean(selectedTargetId) &&
       selectedSourceId !== selectedTargetId &&
       selectedCategories.length > 0 &&
-      (!selectedCategories.includes("contents") || Boolean(startContentKey.trim()));
+      (!selectedCategories.includes("contents") ||
+         Boolean(startContentKey.trim()));
 
    const updateCategoryProgress = (
       category: CompareCategory,
@@ -186,21 +203,121 @@ const App = () => {
       ]);
    };
 
-   const addEnvironment = (environment: Omit<EnvironmentConfig, "id">) => {
-      setEnvironments((prev) => [...prev, { id: uuidv4(), ...environment }]);
+   const addGroup = (groupName: string) => {
+      setGroups((prev) => [
+         ...prev,
+         { groupId: uuidv4(), groupName, environments: [] },
+      ]);
+      api.success({ message: `Group "${groupName}" created.` });
+   };
+
+   const renameGroup = (groupId: string, groupName: string) => {
+      setGroups((prev) =>
+         prev.map((group) =>
+            group.groupId === groupId ? { ...group, groupName } : group,
+         ),
+      );
+      api.success({ message: `Group renamed to "${groupName}".` });
+   };
+
+   const deleteGroup = (groupId: string) => {
+      const deleted = groups.find((group) => group.groupId === groupId);
+      if (!deleted || deleted.environments.length > 0) {
+         return;
+      }
+      setGroups((prev) => prev.filter((group) => group.groupId !== groupId));
+      api.info({ message: `Group "${deleted.groupName}" deleted.` });
+   };
+
+   const addEnvironment = (
+      groupId: string,
+      environment: Omit<EnvironmentConfig, "id">,
+   ) => {
+      const nextEnvironment: EnvironmentConfig = {
+         id: uuidv4(),
+         ...environment,
+      };
+      setGroups((prev) =>
+         prev.map((group) =>
+            group.groupId === groupId
+               ? {
+                    ...group,
+                    environments: [...group.environments, nextEnvironment],
+                 }
+               : group,
+         ),
+      );
       api.success({ message: `Environment "${environment.name}" added.` });
    };
 
-   const editEnvironment = (environment: EnvironmentConfig) => {
-      setEnvironments((prev) =>
-         prev.map((env) => (env.id === environment.id ? environment : env)),
-      );
+   const editEnvironment = (
+      groupId: string,
+      environment: EnvironmentConfig,
+      previousGroupId?: string,
+   ) => {
+      const sourceGroupId = previousGroupId ?? groupId;
+
+      setGroups((prev) => {
+         if (sourceGroupId === groupId) {
+            return prev.map((group) =>
+               group.groupId === groupId
+                  ? {
+                       ...group,
+                       environments: group.environments.map((env) =>
+                          env.id === environment.id ? environment : env,
+                       ),
+                    }
+                  : group,
+            );
+         }
+
+         let movedEnvironment: EnvironmentConfig | null = null;
+
+         const removed = prev.map((group) => {
+            if (group.groupId !== sourceGroupId) {
+               return group;
+            }
+
+            const remaining = group.environments.filter((env) => {
+               if (env.id === environment.id) {
+                  movedEnvironment = { ...env, ...environment };
+                  return false;
+               }
+               return true;
+            });
+
+            return { ...group, environments: remaining };
+         });
+
+         if (!movedEnvironment) {
+            return prev;
+         }
+
+         return removed.map((group) =>
+            group.groupId === groupId
+               ? {
+                    ...group,
+                    environments: [
+                       ...group.environments,
+                       movedEnvironment as EnvironmentConfig,
+                    ],
+                 }
+               : group,
+         );
+      });
+
       api.success({ message: `Environment "${environment.name}" updated.` });
    };
 
    const deleteEnvironment = (id: string) => {
       const deleted = environments.find((env) => env.id === id);
-      setEnvironments((prev) => prev.filter((env) => env.id !== id));
+      setGroups((prev) =>
+         prev.map((group) => ({
+            ...group,
+            environments: group.environments.filter((env) => env.id !== id),
+         })),
+      );
+
       if (selectedSourceId === id) {
          setSelectedSourceId(undefined);
       }
@@ -210,6 +327,73 @@ const App = () => {
       if (deleted) {
          api.info({ message: `Environment "${deleted.name}" deleted.` });
       }
+   };
+
+   const reorderEnvironments = (
+      sourceGroupId: string,
+      destinationGroupId: string,
+      sourceIndex: number,
+      destinationIndex: number,
+   ) => {
+      setGroups((prev) => {
+         if (sourceGroupId === destinationGroupId) {
+            return prev.map((group) => {
+               if (group.groupId !== sourceGroupId) {
+                  return group;
+               }
+
+               const environmentsInGroup = [...group.environments];
+               const [moved] = environmentsInGroup.splice(sourceIndex, 1);
+               if (!moved) {
+                  return group;
+               }
+               environmentsInGroup.splice(destinationIndex, 0, moved);
+               return { ...group, environments: environmentsInGroup };
+            });
+         }
+
+         const sourceGroup = prev.find(
+            (group) => group.groupId === sourceGroupId,
+         );
+         const destinationGroup = prev.find(
+            (group) => group.groupId === destinationGroupId,
+         );
+
+         if (!sourceGroup || !destinationGroup) {
+            return prev;
+         }
+
+         const sourceEnvironments = [...sourceGroup.environments];
+         const [moved] = sourceEnvironments.splice(sourceIndex, 1);
+         if (!moved) {
+            return prev;
+         }
+
+         const destinationEnvironments = [...destinationGroup.environments];
+         destinationEnvironments.splice(destinationIndex, 0, moved);
+
+         return prev.map((group) => {
+            if (group.groupId === sourceGroupId) {
+               return { ...group, environments: sourceEnvironments };
+            }
+            if (group.groupId === destinationGroupId) {
+               return { ...group, environments: destinationEnvironments };
+            }
+            return group;
+         });
+      });
+   };
+
+   const reorderGroups = (sourceIndex: number, destinationIndex: number) => {
+      setGroups((prev) => {
+         const next = [...prev];
+         const [moved] = next.splice(sourceIndex, 1);
+         if (!moved) {
+            return prev;
+         }
+         next.splice(destinationIndex, 0, moved);
+         return next;
+      });
    };
 
    const compareEntityCategory = async (
@@ -391,13 +575,9 @@ const App = () => {
          return;
       }
 
-      if (
-         selectedCategories.includes("contents") &&
-         !startContentKey.trim()
-      ) {
+      if (selectedCategories.includes("contents") && !startContentKey.trim()) {
          api.warning({
-            message:
-               "Start content key is required when comparing contents.",
+            message: "Start content key is required when comparing contents.",
          });
          return;
       }
@@ -530,7 +710,11 @@ const App = () => {
                "loading",
                "Refreshing content types...",
             );
-            const rows = await compareEntityCategory("contentTypes", source, target);
+            const rows = await compareEntityCategory(
+               "contentTypes",
+               source,
+               target,
+            );
             nextCategories.contentTypes = rows;
             updateCategoryProgress(
                "contentTypes",
@@ -596,13 +780,12 @@ const App = () => {
          }
 
          setComparisonResult((prev) => {
-            const base: ComparisonResult =
-               prev ?? {
-                  generatedAt: new Date().toISOString(),
-                  sourceEnvironmentId: source.id,
-                  targetEnvironmentId: target.id,
-                  categories: {},
-               };
+            const base: ComparisonResult = prev ?? {
+               generatedAt: new Date().toISOString(),
+               sourceEnvironmentId: source.id,
+               targetEnvironmentId: target.id,
+               categories: {},
+            };
 
             return {
                ...base,
@@ -853,7 +1036,9 @@ const App = () => {
          }}
       >
          {contextHolder}
-         <Layout style={{ minHeight: "100vh", maxHeight: "100vh", height: "100vh" }}>
+         <Layout
+            style={{ minHeight: "100vh", maxHeight: "100vh", height: "100vh" }}
+         >
             <Sider
                breakpoint="lg"
                collapsedWidth="0"
@@ -866,34 +1051,33 @@ const App = () => {
                   size="middle"
                   style={{ width: "100%" }}
                >
-                  <Card size="small" style={{ marginBottom: 8 }}>
-                     <Space
-                        style={{
-                           width: "100%",
-                           justifyContent: "space-between",
-                        }}
+                  <Space
+                     style={{
+                        width: "100%",
+                        justifyContent: "space-between",
+                        marginTop: 12,
+                     }}
+                  >
+                     <Typography.Title level={4} style={{ margin: 0 }}>
+                        Optimizely CMS SaaS Migration Tool
+                     </Typography.Title>
+                     <Button
+                        icon={
+                           themeMode === "dark" ? (
+                              <SunOutlined />
+                           ) : (
+                              <MoonOutlined />
+                           )
+                        }
+                        onClick={() =>
+                           setThemeMode((prev) =>
+                              prev === "dark" ? "light" : "dark",
+                           )
+                        }
                      >
-                        <Typography.Title level={4} style={{ margin: 0 }}>
-                           Optimizely CMS SaaS Migration Tool
-                        </Typography.Title>
-                        <Button
-                           icon={
-                              themeMode === "dark" ? (
-                                 <SunOutlined />
-                              ) : (
-                                 <MoonOutlined />
-                              )
-                           }
-                           onClick={() =>
-                              setThemeMode((prev) =>
-                                 prev === "dark" ? "light" : "dark",
-                              )
-                           }
-                        >
-                           {themeMode === "dark" ? "Light" : "Dark"}
-                        </Button>
-                     </Space>
-                  </Card>
+                        {themeMode === "dark" ? "Light" : "Dark"}
+                     </Button>
+                  </Space>
 
                   <Menu
                      mode="horizontal"
@@ -918,10 +1102,16 @@ const App = () => {
                   />
 
                   <EnvironmentManager
-                     environments={environments}
+                     groups={groups}
+                     allEnvironments={environments}
+                     onCreateGroup={addGroup}
+                     onRenameGroup={renameGroup}
+                     onDeleteGroup={deleteGroup}
                      onAdd={addEnvironment}
                      onEdit={editEnvironment}
                      onDelete={deleteEnvironment}
+                     onReorderGroups={reorderGroups}
+                     onReorderEnvironments={reorderEnvironments}
                   />
                </Space>
             </Sider>
@@ -935,7 +1125,7 @@ const App = () => {
                   }}
                >
                   <ComparePanel
-                     environments={environments}
+                     groups={groups}
                      selectedSourceId={selectedSourceId}
                      selectedTargetId={selectedTargetId}
                      categories={selectedCategories}

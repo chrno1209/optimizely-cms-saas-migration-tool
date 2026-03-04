@@ -13,11 +13,11 @@ import {
 import {
    CompareCategory,
    ComparisonProgressMap,
-   EnvironmentConfig,
+   EnvironmentGroup,
 } from "../types";
 
 type Props = {
-   environments: EnvironmentConfig[];
+   groups: EnvironmentGroup[];
    selectedSourceId?: string;
    selectedTargetId?: string;
    categories: CompareCategory[];
@@ -42,7 +42,7 @@ const categoryLabels: Record<CompareCategory, string> = {
 };
 
 export const ComparePanel = ({
-   environments,
+   groups,
    selectedSourceId,
    selectedTargetId,
    categories,
@@ -63,6 +63,14 @@ export const ComparePanel = ({
    const isStartContentKeyMissing =
       isContentsSelected && !startContentKey.trim();
 
+   const groupedOptions = groups.map((group) => ({
+      label: group.groupName,
+      options: group.environments.map((environment) => ({
+         label: `${group.groupName} > ${environment.name}`,
+         value: environment.id,
+      })),
+   }));
+
    return (
       <Card>
          <Space orientation="vertical" style={{ width: "100%" }}>
@@ -75,10 +83,7 @@ export const ComparePanel = ({
                   >
                      <Select
                         placeholder="Select source"
-                        options={environments.map((env) => ({
-                           label: env.name,
-                           value: env.id,
-                        }))}
+                        options={groupedOptions}
                         value={selectedSourceId}
                         onChange={onSourceChange}
                      />
@@ -90,10 +95,7 @@ export const ComparePanel = ({
                   >
                      <Select
                         placeholder="Select target"
-                        options={environments.map((env) => ({
-                           label: env.name,
-                           value: env.id,
-                        }))}
+                        options={groupedOptions}
                         value={selectedTargetId}
                         onChange={onTargetChange}
                      />

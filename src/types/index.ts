@@ -5,6 +5,12 @@ export interface EnvironmentConfig {
   clientSecret: string;
 }
 
+export interface EnvironmentGroup {
+  groupId: string;
+  groupName: string;
+  environments: EnvironmentConfig[];
+}
+
 export type CompareCategory = 'contentTypes' | 'displayTemplates' | 'contents';
 
 export type ComparisonStatus =
