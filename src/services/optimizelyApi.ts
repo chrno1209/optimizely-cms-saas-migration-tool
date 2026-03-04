@@ -139,6 +139,9 @@ export class OptimizelyApiService {
   async updateContentType(environment: EnvironmentConfig, key: string, payload: Record<string, unknown>): Promise<Record<string, unknown>> {
     return this.request<Record<string, unknown>>(environment, `/contenttypes/${encodeURIComponent(key)}`, {
       method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/merge-patch+json',
+      },
       body: JSON.stringify(payload),
     });
   }
@@ -162,6 +165,9 @@ export class OptimizelyApiService {
   async updateDisplayTemplate(environment: EnvironmentConfig, key: string, payload: Record<string, unknown>): Promise<Record<string, unknown>> {
     return this.request<Record<string, unknown>>(environment, `/displaytemplates/${encodeURIComponent(key)}`, {
       method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/merge-patch+json',
+      },
       body: JSON.stringify(payload),
     });
   }
