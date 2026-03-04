@@ -9,7 +9,7 @@ Single-page browser application for comparing and migrating Optimizely CMS SaaS 
 - React 19 + TypeScript + Vite
 - Ant Design
 - Browser `fetch` only
-- `localStorage` persistence only (`optimizelyEnvs`)
+- `localStorage` persistence only (`optimizelyGroups`)
 
 ## Features
 
