@@ -3,6 +3,7 @@ import {
    EditOutlined,
    FolderAddOutlined,
    HolderOutlined,
+   EllipsisOutlined,
    PlusOutlined,
 } from "@ant-design/icons";
 import {
@@ -10,6 +11,7 @@ import {
    Button,
    Card,
    Collapse,
+   Dropdown,
    Empty,
    Form,
    Input,
@@ -345,44 +347,67 @@ export const EnvironmentManager = ({
                                                          >
                                                             Add
                                                          </Button>
-                                                         <Button
-                                                            size="small"
-                                                            icon={
-                                                               <EditOutlined />
-                                                            }
-                                                            onClick={(
-                                                               event,
-                                                            ) => {
-                                                               event.stopPropagation();
-                                                               openRenameGroup(
-                                                                  group,
-                                                               );
+                                                         <Dropdown
+                                                            trigger={["click"]}
+                                                            menu={{
+                                                               items: [
+                                                                  {
+                                                                     key: "rename",
+                                                                     label: "Rename",
+                                                                     icon: (
+                                                                        <EditOutlined />
+                                                                     ),
+                                                                  },
+                                                                  {
+                                                                     key: "delete",
+                                                                     label: "Delete",
+                                                                     icon: (
+                                                                        <DeleteOutlined />
+                                                                     ),
+                                                                     danger: true,
+                                                                     disabled:
+                                                                        group
+                                                                           .environments
+                                                                           .length >
+                                                                        0,
+                                                                  },
+                                                               ],
+                                                               onClick: ({
+                                                                  key,
+                                                                  domEvent,
+                                                               }) => {
+                                                                  domEvent.stopPropagation();
+                                                                  if (
+                                                                     key ===
+                                                                     "rename"
+                                                                  ) {
+                                                                     openRenameGroup(
+                                                                        group,
+                                                                     );
+                                                                  }
+                                                                  if (
+                                                                     key ===
+                                                                     "delete"
+                                                                  ) {
+                                                                     handleDeleteGroup(
+                                                                        group,
+                                                                     );
+                                                                  }
+                                                               },
                                                             }}
                                                          >
-                                                            Rename
-                                                         </Button>
-                                                         <Button
-                                                            size="small"
-                                                            danger
-                                                            icon={
-                                                               <DeleteOutlined />
-                                                            }
-                                                            disabled={
-                                                               group
-                                                                  .environments
-                                                                  .length > 0
-                                                            }
-                                                            onClick={(
-                                                               event,
-                                                            ) => {
-                                                               event.stopPropagation();
-                                                               handleDeleteGroup(
-                                                                  group,
-                                                               );
-                                                            }}
-                                                         >
-                                                            Delete
-                                                         </Button>
+                                                            <Button
+                                                               size="small"
+                                                               icon={
+                                                                  <EllipsisOutlined />
+                                                               }
+                                                               onClick={(
+                                                                  event,
+                                                               ) => {
+                                                                  event.stopPropagation();
+                                                               }}
+                                                            />
+                                                         </Dropdown>
                                                       </Space>
                                                    </Space>
                                                 ),
@@ -446,36 +471,61 @@ export const EnvironmentManager = ({
                                                                                     environment.name
                                                                                  }
                                                                                  extra={
-                                                                                    <Space>
+                                                                                    <Dropdown
+                                                                                       trigger={[
+                                                                                          "click",
+                                                                                       ]}
+                                                                                       menu={{
+                                                                                          items: [
+                                                                                             {
+                                                                                                key: "edit",
+                                                                                                label: "Edit",
+                                                                                                icon: (
+                                                                                                   <EditOutlined />
+                                                                                                ),
+                                                                                             },
+                                                                                             {
+                                                                                                key: "delete",
+                                                                                                label: "Delete",
+                                                                                                icon: (
+                                                                                                   <DeleteOutlined />
+                                                                                                ),
+                                                                                                danger: true,
+                                                                                             },
+                                                                                          ],
+                                                                                          onClick:
+                                                                                             ({
+                                                                                                key,
+                                                                                                domEvent,
+                                                                                             }) => {
+                                                                                                domEvent.stopPropagation();
+                                                                                                if (
+                                                                                                   key ===
+                                                                                                   "edit"
+                                                                                                ) {
+                                                                                                   openEditEnvironment(
+                                                                                                      environment,
+                                                                                                      group.groupId,
+                                                                                                   );
+                                                                                                }
+                                                                                                if (
+                                                                                                   key ===
+                                                                                                   "delete"
+                                                                                                ) {
+                                                                                                   handleDeleteEnvironment(
+                                                                                                      environment,
+                                                                                                   );
+                                                                                                }
+                                                                                             },
+                                                                                       }}
+                                                                                    >
                                                                                        <Button
                                                                                           size="small"
                                                                                           icon={
-                                                                                             <EditOutlined />
+                                                                                             <EllipsisOutlined />
                                                                                           }
-                                                                                          onClick={() =>
-                                                                                             openEditEnvironment(
-                                                                                                environment,
-                                                                                                group.groupId,
-                                                                                             )
-                                                                                          }
-                                                                                       >
-                                                                                          Edit
-                                                                                       </Button>
-                                                                                       <Button
-                                                                                          size="small"
-                                                                                          danger
-                                                                                          icon={
-                                                                                             <DeleteOutlined />
-                                                                                          }
-                                                                                          onClick={() =>
-                                                                                             handleDeleteEnvironment(
-                                                                                                environment,
-                                                                                             )
-                                                                                          }
-                                                                                       >
-                                                                                          Delete
-                                                                                       </Button>
-                                                                                    </Space>
+                                                                                       />
+                                                                                    </Dropdown>
                                                                                  }
                                                                               >
                                                                                  <Space

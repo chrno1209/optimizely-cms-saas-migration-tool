@@ -2,6 +2,8 @@
 
 Single-page browser application for comparing and migrating Optimizely CMS SaaS entities across environments.
 
+![screenshot image](./screenshot.png)
+
 ## Tech Stack
 
 - React 19 + TypeScript + Vite
